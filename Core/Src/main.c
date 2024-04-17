@@ -265,6 +265,7 @@ int main(void) {
 	HAL_TIM_Encoder_Start(&htim5, TIM_CHANNEL_1 | TIM_CHANNEL_2);
 	init_dht22();
 	W25Q32_Init(&hspi2, GPIOB, GPIO_PIN_12);
+	HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, 1);
 //	First_Start();
 	Flash_get_info();
 	Response();
@@ -744,8 +745,11 @@ static void MX_GPIO_Init(void) {
 	HAL_GPIO_WritePin(LED_GPIO_Port, LED_Pin, GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
-	HAL_GPIO_WritePin(GPIOB,
-	BUZZER_Pin | LIGHT_Pin | CS_Pin | LIGHT2_Pin | DHT_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(BUZZER_GPIO_Port, BUZZER_Pin, GPIO_PIN_SET);
+
+	/*Configure GPIO pin Output Level */
+	HAL_GPIO_WritePin(GPIOB, LIGHT_Pin | CS_Pin | LIGHT2_Pin | DHT_Pin,
+			GPIO_PIN_RESET);
 
 	/*Configure GPIO pin : LED_Pin */
 	GPIO_InitStruct.Pin = LED_Pin;
@@ -833,7 +837,6 @@ static void MX_GPIO_Init(void) {
 //	f_done = 1;
 //	f_done_2 = 1;
 //}
-
 void gpio_set_mode(uint8_t mode) {
 	GPIO_InitTypeDef GPIO_InitStruct = { 0 };
 	if (mode) {						// output
@@ -1392,7 +1395,14 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 			d_done = 1;
 			btn_tick = g_sys_tick;
 		}
-	} else if (GPIO_Pin == GPIO_PIN_5) {				// light button
+	} else if (GPIO_Pin == GPIO_PIN_8) {				// door 2 button
+		if (g_sys_tick - btn_tick >= 500) {
+			d_mod_2 = 0;
+			door_state_2 ^= 1;
+			d_done_2 = 1;
+			btn_tick = g_sys_tick;
+		}
+	} else if (GPIO_Pin == GPIO_PIN_14) {				// light button
 		if (g_sys_tick - btn_tick >= 500) {
 			led_mod = 0;
 			led_state ^= 1;
@@ -1406,12 +1416,20 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 			l_done_2 = 1;
 			btn_tick = g_sys_tick;
 		}
-	} else if (GPIO_Pin == GPIO_PIN_8) {				// fan button
+	} else if (GPIO_Pin == GPIO_PIN_12) {				// fan button
 		if (g_sys_tick - btn_tick >= 500) {
 			f_done = 1;
 			speed++;
 			if (speed == 6)
 				speed = 0;
+			btn_tick = g_sys_tick;
+		}
+	} else if (GPIO_Pin == GPIO_PIN_5) {				// fan2 button
+		if (g_sys_tick - btn_tick >= 500) {
+			f_done_2 = 1;
+			speed_2++;
+			if (speed_2 == 6)
+				speed_2 = 0;
 			btn_tick = g_sys_tick;
 		}
 	}
