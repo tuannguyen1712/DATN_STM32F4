@@ -194,6 +194,7 @@ void control_led();
 // Buzzer
 void warning();
 void buzzer();
+void alarm();
 
 void getADC_value();
 
@@ -280,6 +281,7 @@ int main(void) {
 		control_door();
 		control_led();
 		Send_data();
+		buzzer();
 		/* Test case for encoder motor*/
 //		if (g_sys_tick - test_tick >= 1000) {
 //			motor_get_speed();
@@ -908,7 +910,9 @@ void Send_data() {
 void Handle_Command() {
 	if (g_sys_tick - uart_last_rcv >= 20 && strlen((char*) uart_buf) >= 7) {
 		// LIGHT command
-		HAL_UART_Transmit(&huart1, uart_buf, strlen((char*) uart_buf), 200);
+		if (isDebug) {
+			HAL_UART_Transmit(&huart1, uart_buf, strlen((char*) uart_buf), 200);
+		}
 		if (strlen((char*) uart_buf) == 7
 				&& strncmp((char*) uart_buf, "c:l:1:", 6) == 0) {
 			led1 = atoi((char*) uart_buf + 6);
@@ -1062,7 +1066,7 @@ void Handle_Command() {
 		} else if (strncmp((char*) uart_buf, "c:b:s:", 6) == 0
 				&& strlen((char*) uart_buf) == 7) {
 			buz_done = 1;
-			buz_state = 0;
+			buz_state = atoi((char*) uart_buf + 6);
 			clear_uart_buf();
 			if (isDebug) {
 				sprintf((char*) tx, "buz state: %d\n", buz_state);
@@ -1078,8 +1082,10 @@ void Handle_Command() {
 			}
 		} else {
 			clear_uart_buf();
-			sprintf((char*) tx, "Invalid Command!\n");
-			HAL_UART_Transmit(&huart1, tx, strlen((char*) tx), 200);
+			if (isDebug) {
+				sprintf((char*) tx, "Invalid Command!\n");
+				HAL_UART_Transmit(&huart1, tx, strlen((char*) tx), 200);
+			}
 		}
 	}
 }
@@ -1134,8 +1140,8 @@ void en_motor() {
 		} else if (speed == 5) {
 			__HAL_TIM_SetCompare(&htim3, TIM_CHANNEL_1, 999);
 		}
-		sprintf((char*) tx, "fan 1x speed: %d\n", speed);
-		HAL_UART_Transmit(&huart1, tx, strlen((char*) tx), 200);
+//		sprintf((char*) tx, "fan 1x speed: %d\n", speed);
+//		HAL_UART_Transmit(&huart1, tx, strlen((char*) tx), 200);
 		f_done = 0;
 		Response();
 	}
@@ -1160,13 +1166,13 @@ void en_motor() {
 
 void motor_get_speed() {
 	HAL_Delay(200);
-	en_cnt = __HAL_TIM_GetCounter(&htim4);
-	en_cnt_2 = __HAL_TIM_GetCounter(&htim5);
+	en_cnt_2 = __HAL_TIM_GetCounter(&htim4);
+	en_cnt = __HAL_TIM_GetCounter(&htim5);
 	HAL_Delay(100);
-	motor_speed = (__HAL_TIM_GetCounter(&htim4) - en_cnt) * 600 / 384; //encoder cnt increase 384 when complete 1 round
-	motor_speed_2 = (__HAL_TIM_GetCounter(&htim5) - en_cnt_2) * 600 / 384;
-	sprintf((char*) tx, "\n%d %d\n", motor_speed_2, check_speed(motor_speed_2));
-	HAL_UART_Transmit(&huart1, tx, strlen((char*) tx), 200);
+	motor_speed_2 = (__HAL_TIM_GetCounter(&htim4) - en_cnt_2) * 600 / 384; //encoder cnt increase 384 when complete 1 round
+	motor_speed = (__HAL_TIM_GetCounter(&htim5) - en_cnt) * 600 / 384;
+//	sprintf((char*) tx, "\n%d %d\n", motor_speed_2, check_speed(motor_speed_2));
+//	HAL_UART_Transmit(&huart1, tx, strlen((char*) tx), 200);
 	if (check_speed(motor_speed) != speed)
 		motor_speed = -1;
 	else
@@ -1179,15 +1185,15 @@ void motor_get_speed() {
 
 uint8_t check_speed(int encoder_val) {
 
-	if (encoder_val == 0)
+	if (encoder_val < 100)
 		return 0;
-	else if (encoder_val >= 600 && encoder_val < 1150)
+	else if (encoder_val >= 600 && encoder_val < 1650)
 		return 1;
-	else if (encoder_val >= 1150 && encoder_val < 1950)
+	else if (encoder_val >= 1650 && encoder_val < 2750)
 		return 2;
-	else if (encoder_val >= 1950 && encoder_val < 3000)
+	else if (encoder_val >= 2750 && encoder_val < 4150)
 		return 3;
-	else if (encoder_val >= 3000 && encoder_val < 3900)
+	else if (encoder_val >= 4150 && encoder_val < 5200)
 		return 4;
 	else
 		return 5;
@@ -1227,22 +1233,37 @@ void Blink_Led() {
 }
 
 void warning() {
-	if (adc_val < 1000) {
+	if (adc_val > 1000) {
 		buz_lvl = 1;
 	} else
 		buz_lvl = 0;
 }
 
+//void buzzer() {
+//	if (buz_done) {
+//		warning();
+//		if (buz_state) {
+//			if (buz_lvl) {
+//				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, 1);
+//			} else {
+//				buz_state = 0;
+//			}
+//		}
+//	}
+//}
+
 void buzzer() {
-	if (buz_done) {
-		warning();
-		if (buz_state) {
-			if (buz_lvl) {
-				HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, 1);
-			} else {
-				buz_state = 0;
-			}
-		}
+	if (buz_state) {
+		alarm();
+	} else {
+		HAL_GPIO_WritePin(GPIOB, GPIO_PIN_2, 1);
+	}
+}
+
+void alarm() {
+	if (g_sys_tick - buz_tick > 1000) {
+		HAL_GPIO_TogglePin(GPIOB, GPIO_PIN_2);
+		buz_tick = g_sys_tick;
 	}
 }
 
