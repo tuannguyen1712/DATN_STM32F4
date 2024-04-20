@@ -76,7 +76,7 @@ uint8_t uart_buf[100];
 uint8_t tx[1024];
 uint8_t uart_buf_cnt = 0;
 uint8_t uart_chr;
-uint8_t uart_last_rcv = 0;
+uint32_t uart_last_rcv = 0;
 
 // Timer
 uint32_t g_sys_tick = 0;
@@ -876,6 +876,9 @@ void Response() {
 			tem, hum, adc_val, door1, d_mod, door_state, door2, d_mod_2,
 			door_state_2, fan1, motor_speed, fan2, motor_speed_2, led1, led_mod,
 			led_state, led2, led_mod_2, led_state_2, buz_state);
+//	sprintf((char*) tx, "UART len: %d, data:%s\n",
+//			strlen((char*) uart_buf),
+//			uart_buf);
 	HAL_UART_Transmit(&huart1, tx, strlen((char*) tx), 200);
 }
 
@@ -1227,6 +1230,7 @@ void control_led() {
 void Blink_Led() {
 	if (g_sys_tick - led_tick >= 1000) {
 //		getADC_value();
+		clear_uart_buf();
 		HAL_GPIO_TogglePin(GPIOC, GPIO_PIN_13);
 		led_tick = g_sys_tick;
 	}
